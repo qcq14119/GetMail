@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GetMail · 邮箱工作台预览</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #142e31;
+      --muted: #506667;
+      --line: #dae4e3;
+      --paper: #fff;
+      --canvas: #f2f7f6;
+      --accent: #136956;
+      --wash: #e4f1ec;
+      --warning: #8b4217;
+      font-family: "Instrument Sans", "Microsoft YaHei UI", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:disabled { cursor: default; opacity: .6; }
+    h1, h2, h3, p { margin: 0; }
+    [hidden] { display: none !important; }
+    .shell { width: min(1500px, 100%); margin: auto; padding: 28px clamp(16px, 4vw, 58px); }
+    .masthead, .brand, .tools, .pane-title, .subject-line, .sender-line, .actions {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .masthead { justify-content: space-between; margin-bottom: 28px; }
+    .brand { gap: 13px; }
+    .mark {
+      display: grid; place-items: center; flex: 0 0 42px; height: 42px; border-radius: 12px;
+      color: var(--paper); background: var(--accent);
+    }
+    .envelope { width: 21px; height: 15px; border: 1.5px solid currentColor; border-radius: 3px; overflow: hidden; }
+    .envelope::before {
+      content: ""; display: block; width: 12px; height: 12px; margin: -8px auto 0;
+      transform: rotate(45deg); border: solid currentColor; border-width: 0 1.5px 1.5px 0;
+    }
+    .brand h1 { font-family: "Bricolage Grotesque", "Segoe UI", sans-serif; font-size: 26px; letter-spacing: -.055em; line-height: 1; }
+    .brand p, .muted, time { color: var(--muted); font-size: 12px; }
+    .brand p { margin-top: 5px; }
+    .preview { color: var(--accent); background: var(--wash); border-radius: 20px; font-size: 12px; padding: 5px 10px; }
+    .button {
+      min-height: 36px; border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+      border-radius: 8px; padding: 6px 11px; font-size: 13px;
+    }
+    .button:hover { border-color: var(--accent); }
+    .primary { color: var(--paper); background: var(--accent); border-color: var(--accent); }
+    .primary:hover { background: #105646; }
+    .workbench {
+      display: grid; grid-template-columns: minmax(218px, .8fr) minmax(245px, 1fr) minmax(0, 1.63fr);
+      min-height: 580px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--paper);
+      box-shadow: 0 12px 30px #183e3810;
+    }
+    .pane { min-width: 0; }
+    .pane + .pane { border-left: 1px solid var(--line); }
+    .accounts { background: #f8fbfa; }
+    .pane-title { min-height: 68px; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .pane-title h2 { font-size: 15px; }
+    .search { padding: 14px 12px 8px; }
+    input, select, textarea {
+      width: 100%; min-height: 36px; border: 1px solid var(--line); border-radius: 8px;
+      color: var(--ink); background: var(--paper); padding: 6px 10px; font-size: 13px;
+    }
+    input::placeholder { color: var(--muted); }
+    .account-list { padding: 0 10px 14px; display: grid; gap: 5px; }
+    .row {
+      display: grid; width: 100%; text-align: left; background: transparent; color: var(--ink);
+      border: 1px solid transparent; border-radius: 8px; padding: 10px; min-width: 0;
+    }
+    .row:hover { background: var(--canvas); }
+    .row[aria-pressed="true"] { background: var(--wash); border-color: #c1dfd4; }
+    .account {
+      grid-template-columns: 31px minmax(0, 1fr); align-items: center; gap: 9px;
+      position: relative; border-left: 3px solid transparent;
+    }
+    .account[aria-pressed="true"] { border-left-color: var(--accent); }
+    .avatar {
+      display: grid; place-items: center; width: 31px; height: 31px; border-radius: 8px;
+      background: #deebe7; color: #235549; font: 600 12px "Segoe UI", sans-serif;
+    }
+    .account-text, .mail-title, .snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-text { font-size: 13px; }
+    .account .muted { display: block; margin-top: 3px; }
+    .folders { display: flex; gap: 5px; padding: 12px 12px 6px; }
+    .folder { border-color: transparent; min-height: 34px; }
+    .folder[aria-pressed="true"] { background: var(--wash); color: var(--accent); font-weight: 600; }
+    .token-info { display: grid; gap: 8px; margin: 12px 12px 0; padding: 11px; background: var(--canvas); border-radius: 8px; }
+    .token-info p { line-height: 1.55; overflow-wrap: anywhere; }
+    .token-info strong { font-size: 13px; }
+    .token-info .button { justify-self: start; }
+    .status { padding: 4px 15px 10px; line-height: 1.5; overflow-wrap: anywhere; }
+    .problem { color: var(--warning); }
+    .mail-list { padding: 0 10px 14px; display: grid; gap: 4px; }
+    .mail { gap: 4px; }
+    .subject-line { justify-content: space-between; gap: 5px; min-width: 0; }
+    .mail-title { font-size: 13px; }
+    .snippet { font-size: 12px; color: var(--muted); }
+    time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .reader { background: var(--paper); }
+    .reader .pane-title { justify-content: flex-start; }
+    .letter { padding: clamp(20px, 4vw, 40px); overflow-wrap: anywhere; }
+    .letter h3 { font-size: clamp(20px, 3vw, 29px); line-height: 1.35; }
+    .sender-line { margin-top: 20px; align-items: flex-start; }
+    .sender-line .avatar { flex: 0 0 31px; }
+    .sender-line b { display: block; font-size: 13px; margin-bottom: 3px; }
+    .sender-line time { margin-left: auto; }
+    .letter-body { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line); line-height: 1.8; font-size: 14px; white-space: pre-wrap; }
+    .empty { padding: 20px 15px; color: var(--muted); font-size: 13px; }
+    .mobile-nav { display: none; }
+    dialog { width: min(480px, calc(100% - 32px)); border: 1px solid var(--line); border-radius: 14px; padding: 22px; color: var(--ink); }
+    dialog::backdrop { background: #122f3366; }
+    dialog h2 { font-size: 19px; }
+    dialog p { margin: 12px 0; line-height: 1.6; }
+    dialog label { display: grid; gap: 6px; font-size: 13px; }
+    .delimiter-fields { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .delimiter-fields > label { flex: 1 1 140px; min-width: 0; }
+    textarea { min-height: 120px; resize: vertical; }
+    .import-preview { margin-top: 14px; }
+    .import-preview h3 { font-size: 13px; }
+    .import-preview p { margin: 4px 0; }
+    #import-dialog { width: min(700px, calc(100% - 32px)); }
+    .import-results { max-height: 190px; overflow: auto; margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; }
+    .import-results table { width: 100%; min-width: 430px; border-collapse: collapse; text-align: left; font-size: 12px; }
+    .import-results th, .import-results td { padding: 7px 9px; vertical-align: top; }
+    .import-results th { position: sticky; top: 0; background: var(--canvas); white-space: nowrap; }
+    .import-results td { border-top: 1px solid var(--line); overflow-wrap: anywhere; white-space: pre-wrap; }
+    .import-results td:first-child { color: var(--muted); }
+    .import-results code { font: inherit; }
+    .actions { justify-content: flex-end; margin-top: 17px; }
+    @media (max-width: 820px) {
+      .shell { padding-top: 16px; }
+      .masthead { margin-bottom: 16px; }
+      .mobile-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+      .mobile-nav [aria-pressed="true"] { color: var(--accent); background: var(--wash); border-color: #a8cdbf; }
+      .workbench { display: block; min-height: 460px; }
+      .pane { display: none; }
+      .pane + .pane { border-left: 0; }
+      .workbench[data-view="accounts"] .accounts, .workbench[data-view="mail"] .messages, .workbench[data-view="reader"] .reader { display: block; }
+    }
+    @media (max-width: 420px) {
+      .masthead { align-items: flex-start; flex-wrap: wrap; }
+      .tools { gap: 6px; }
+      .preview { padding: 4px 7px; }
+      .brand { gap: 8px; }
+      .sender-line { flex-wrap: wrap; }
+      .sender-line time { margin-left: 43px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"><span class="envelope"></span></span>
+        <div><h1>GetMail</h1><p>邮箱工作台</p></div>
+      </div>
+      <div class="tools">
+        <span class="preview">模拟预览</span>
+        <button class="button" id="open-export" type="button">导出账号</button>
+        <button class="button primary" id="open-import" type="button">＋ 导入邮箱</button>
+      </div>
+    </header>
+    <nav class="mobile-nav" aria-label="工作台视图">
+      <button class="button" type="button" data-view="accounts" aria-pressed="true">邮箱</button>
+      <button class="button" type="button" data-view="mail" aria-pressed="false">邮件</button>
+      <button class="button" type="button" data-view="reader" aria-pressed="false">正文</button>
+    </nav>
+    <div class="workbench" id="workbench" data-view="accounts">
+      <section class="pane accounts" aria-labelledby="accounts-heading">
+        <header class="pane-title"><h2 id="accounts-heading">邮箱</h2><span class="muted" id="account-count"></span></header>
+        <div class="search"><input id="search" type="search" aria-label="搜索邮箱地址" placeholder="搜索邮箱地址"></div>
+        <div class="account-list" id="account-list"></div>
+      </section>
+      <section class="pane messages" aria-labelledby="messages-heading">
+        <header class="pane-title"><h2 id="messages-heading">邮件</h2><button class="button" id="refresh" type="button">刷新邮件</button></header>
+        <div class="token-info">
+          <strong id="token-status"></strong>
+          <p class="muted" id="token-dates"></p>
+          <button class="button" id="reauthorize" type="button">用 Microsoft 重新授权</button>
+        </div>
+        <div class="folders" aria-label="邮件文件夹" role="group">
+          <button class="button folder" type="button" data-folder="inbox" aria-pressed="true">收件箱</button>
+          <button class="button folder" type="button" data-folder="junk" aria-pressed="false">垃圾邮件</button>
+        </div>
+        <p class="status muted" id="status" role="status"></p>
+        <div class="mail-list" id="mail-list"></div>
+      </section>
+      <section class="pane reader" aria-labelledby="reader-heading">
+        <header class="pane-title"><h2 id="reader-heading">正文</h2></header>
+        <div id="reader"></div>
+      </section>
+    </div>
+  </main>
+  <dialog id="import-dialog" aria-labelledby="import-heading">
+    <form id="import-form">
+      <h2 id="import-heading">导入邮箱</h2>
+      <p class="muted">每行一个邮箱，粘贴后在下方核对字段。</p>
+      <div class="delimiter-fields">
+        <label><span id="delimiter-label">分隔符</span>
+          <select id="delimiter-mode" aria-labelledby="delimiter-label">
+            <option value="auto">自动解析</option>
+            <option value="custom">自定义</option>
+          </select>
+        </label>
+        <label id="custom-delimiter-field" hidden>自定义分隔符
+          <input id="custom-delimiter" type="text" placeholder="例如 | 或 ::" autocomplete="off" spellcheck="false" disabled>
+        </label>
+      </div>
+      <label>示例导入文本（请勿粘贴真实凭据）<textarea id="demo-import" autocomplete="off" spellcheck="false" required>another@example.com---demo-password
+missing-id@example.com----demo-password----demo-refresh-token
+token@example.com--------00000000-0000-4000-8000-000000000001----demo-refresh-token</textarea></label>
+      <section class="import-preview" aria-labelledby="import-preview-heading">
+        <h3 id="import-preview-heading">解析预览</h3>
+        <p class="muted" id="import-summary" role="status"></p>
+        <div class="import-results" id="import-table" tabindex="0" role="region" aria-labelledby="import-preview-heading">
+          <table aria-label="逐行解析字段">
+            <thead><tr id="import-headings"></tr></thead>
+            <tbody id="import-results"></tbody>
+          </table>
+        </div>
+      </section>
+      <div class="actions">
+        <button class="button" id="cancel-import" type="button">取消</button>
+        <button class="button primary" id="save-import" type="submit">添加示例邮箱</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="reauthorize-dialog" aria-labelledby="reauthorize-heading">
+    <h2 id="reauthorize-heading">用 Microsoft 重新授权</h2>
+    <p id="reauthorize-target"></p>
+    <p class="muted">正式版会打开微软登录页。授权完成后，GetMail 会为这个邮箱保存新令牌。</p>
+    <form method="dialog" class="actions">
+      <button class="button" value="cancel">取消</button>
+      <button class="button primary" value="confirm">模拟授权成功</button>
+    </form>
+  </dialog>
+  <dialog id="export-dialog" aria-labelledby="export-heading">
+    <h2 id="export-heading">导出账号</h2>
+    <p id="export-summary"></p>
+    <p class="muted">预览下载示例账号 JSON。正式版的迁移备份会用你设置的备份密码加密。</p>
+    <form method="dialog" class="actions">
+      <button class="button" value="cancel">取消</button>
+      <button class="button primary" value="download">下载示例备份</button>
+    </form>
+  </dialog>
+  <script>
+    const accounts = [
+      {
+        email: "daily@example.com", name: "日常邮箱",
+        inbox: [
+          { subject: "新的登录提醒", sender: "账户中心", address: "security@example.com", time: "09:42", body: "你好，\n\n我们检测到一次来自新设备的登录。你可以在账户中心查看最近的登录活动。\n\n如果这是你本人的操作，可以忽略这封邮件。" },
+          { subject: "本周收件摘要", sender: "每周简报", address: "digest@example.com", time: "08:15", body: "你好，\n\n本周摘要已生成。你可以在订阅中心调整下一期的发送频率。" },
+          { subject: "资料已准备好", sender: "项目组", address: "team@example.com", time: "昨天", body: "资料已经整理完成。下次会议前，请核对你负责的部分。" }
+        ],
+        junk: [
+          { subject: "订阅确认", sender: "优惠通知", address: "offers@example.com", time: "昨天", body: "这是一封用于展示垃圾邮件文件夹的示例邮件。" }
+        ]
+      },
+      { email: "projects@example.com", name: "项目邮箱", inbox: [
+        { subject: "周五交付确认", sender: "项目组", address: "team@example.com", time: "10:08", body: "你好，\n\n本周交付安排在周五下午。会议邀请将另行发送。" }
+      ], junk: [] },
+      { email: "archive@example.com", name: "归档邮箱", expired: true, inbox: [], junk: [] }
+    ];
+
+    const byId = (id) => document.getElementById(id);
+    const workbench = byId("workbench");
+    const search = byId("search");
+    const accountList = byId("account-list");
+    const mailList = byId("mail-list");
+    const reader = byId("reader");
+    const status = byId("status");
+    const refresh = byId("refresh");
+    const dialog = byId("import-dialog");
+    const importInput = byId("demo-import");
+    const importResults = byId("import-results");
+    const delimiterMode = byId("delimiter-mode");
+    const customDelimiter = byId("custom-delimiter");
+    const reauthorizeDialog = byId("reauthorize-dialog");
+    const exportDialog = byId("export-dialog");
+    const folders = [...document.querySelectorAll("[data-folder]")];
+    const viewButtons = [...document.querySelectorAll(".mobile-nav [data-view]")];
+    let account = accounts[0];
+    let folder = "inbox";
+    let messages = account.inbox;
+    let selectedMessage = messages[0];
+    let pendingFetch;
+    let reauthorizeAccount;
+    let importRows = [];
+    const tokenTime = new Intl.DateTimeFormat("zh-CN", {
+      dateStyle: "short", timeStyle: "short", timeZone: "Asia/Shanghai"
+    });
+    accounts[0].checkedAt = Date.now();
+    accounts[0].accessExpiresAt = accounts[0].checkedAt + 60 * 60 * 1000;
+
+    function element(tag, text, className) {
+      const node = document.createElement(tag);
+      if (text) node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    }
+
+    function setView(view) {
+      workbench.dataset.view = view;
+      viewButtons.forEach((button) => button.setAttribute("aria-pressed", button.dataset.view === view));
+    }
+
+    function setStatus(message, problem = false) {
+      status.textContent = message;
+      status.classList.toggle("problem", problem);
+    }
+
+    function renderToken() {
+      const tokenStatus = byId("token-status");
+      const needsAuthorization = account.expired || account.importStatus;
+      tokenStatus.textContent = account.importStatus || (account.expired ? "需要重新授权" : account.checkedAt ? "上次验证成功" : "令牌尚未验证");
+      tokenStatus.classList.toggle("problem", Boolean(needsAuthorization));
+      const dates = account.importStatus ? [] : ["刷新令牌到期时间未知"];
+      if (account.checkedAt) dates.push(`上次验证 ${tokenTime.format(account.checkedAt)}`);
+      if (account.accessExpiresAt) dates.push(`访问令牌到期 ${tokenTime.format(account.accessExpiresAt)}（北京时间）`);
+      byId("token-dates").textContent = dates.join(" · ");
+      byId("reauthorize").textContent = account.checkedAt || account.expired ? "用 Microsoft 重新授权" : "用 Microsoft 授权";
+    }
+
+    function renderAccounts() {
+      const query = search.value.trim().toLowerCase();
+      const matches = accounts.filter((item) => item.email.toLowerCase().includes(query) || item.name.includes(query));
+      accountList.replaceChildren();
+      byId("account-count").textContent = `${accounts.length} 个`;
+      for (const item of matches) {
+        const button = element("button", "", "row account");
+        button.type = "button";
+        button.setAttribute("aria-pressed", item === account);
+        const caption = element("span");
+        caption.append(element("strong", item.email, "account-text"), element("span", item.importStatus || (item.expired ? "令牌已失效" : item.name), "muted"));
+        button.append(element("span", item.email[0].toUpperCase(), "avatar"), caption);
+        button.addEventListener("click", () => {
+          account = item;
+          folder = "inbox";
+          for (const row of accountList.children) row.setAttribute("aria-pressed", row === button);
+          setView("mail");
+          fetchFolder();
+          if (window.matchMedia("(max-width: 820px)").matches) refresh.focus();
+        });
+        accountList.append(button);
+      }
+      if (!matches.length) accountList.append(element("p", "没有匹配的邮箱。", "empty"));
+    }
+
+    function renderReader() {
+      reader.replaceChildren();
+      if (!selectedMessage) {
+        reader.append(element("p", "选择一封邮件查看正文。", "empty"));
+        return;
+      }
+      const letter = element("article", "", "letter");
+      const sender = element("div", "", "sender-line");
+      const identity = element("div");
+      identity.append(element("b", selectedMessage.sender), element("span", selectedMessage.address, "muted"));
+      sender.append(element("span", selectedMessage.sender[0], "avatar"), identity, element("time", selectedMessage.time));
+      letter.append(element("h3", selectedMessage.subject), sender, element("p", selectedMessage.body, "letter-body"));
+      reader.append(letter);
+    }
+
+    function renderMessages() {
+      mailList.replaceChildren();
+      for (const message of messages) {
+        const button = element("button", "", "row mail");
+        button.type = "button";
+        button.setAttribute("aria-pressed", message === selectedMessage);
+        const line = element("span", "", "subject-line");
+        line.append(element("strong", message.subject, "mail-title"), element("time", message.time));
+        button.append(line, element("span", message.sender, "muted"), element("span", message.body, "snippet"));
+        button.addEventListener("click", () => {
+          selectedMessage = message;
+          for (const row of mailList.children) row.setAttribute("aria-pressed", row === button);
+          renderReader();
+          setView("reader");
+          if (window.matchMedia("(max-width: 820px)").matches) viewButtons[2].focus();
+        });
+        mailList.append(button);
+      }
+    }
+
+    function fetchFolder() {
+      clearTimeout(pendingFetch);
+      renderToken();
+      messages = [];
+      selectedMessage = null;
+      renderMessages();
+      renderReader();
+      folders.forEach((button) => button.setAttribute("aria-pressed", button.dataset.folder === folder));
+      if (account.importStatus) {
+        const action = account.importStatus === "缺少 Client ID" ? "补齐原应用的 Client ID，或用 Microsoft 重新授权。" : "请先用 Microsoft 授权。";
+        setStatus(`${account.email} · ${action}`, true);
+        return;
+      }
+      setStatus(`${account.email} · 正在模拟取件…`);
+      pendingFetch = setTimeout(() => {
+        if (account.expired) {
+          setStatus(`${account.email} · 令牌已失效，请更新令牌或重新授权。`, true);
+          return;
+        }
+        account.checkedAt = Date.now();
+        if (!account.accessExpiresAt || account.accessExpiresAt <= account.checkedAt) {
+          account.accessExpiresAt = account.checkedAt + 60 * 60 * 1000;
+        }
+        renderToken();
+        messages = account[folder];
+        renderMessages();
+        setStatus(`${account.email} · ${messages.length ? `共 ${messages.length} 封` : "此文件夹暂无邮件"}`);
+      }, 300);
+    }
+
+    refresh.addEventListener("click", fetchFolder);
+    search.addEventListener("input", renderAccounts);
+    folders.forEach((button) => button.addEventListener("click", () => {
+      folder = button.dataset.folder;
+      fetchFolder();
+    }));
+    viewButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
+    byId("reauthorize").addEventListener("click", () => {
+      reauthorizeAccount = account;
+      byId("reauthorize-target").textContent = account.email;
+      reauthorizeDialog.returnValue = "";
+      reauthorizeDialog.showModal();
+    });
+    reauthorizeDialog.addEventListener("close", () => {
+      if (reauthorizeDialog.returnValue !== "confirm") return;
+      reauthorizeAccount.expired = false;
+      delete reauthorizeAccount.importStatus;
+      reauthorizeAccount.checkedAt = Date.now();
+      reauthorizeAccount.accessExpiresAt = reauthorizeAccount.checkedAt + 60 * 60 * 1000;
+      renderAccounts();
+      if (reauthorizeAccount === account) fetchFolder();
+    });
+    byId("open-export").addEventListener("click", () => {
+      byId("export-summary").textContent = `将导出 ${accounts.length} 个示例邮箱。`;
+      exportDialog.returnValue = "";
+      exportDialog.showModal();
+    });
+    exportDialog.addEventListener("close", () => {
+      if (exportDialog.returnValue !== "download") return;
+      const backup = {
+        format: "getmail-preview",
+        version: 1,
+        accounts: accounts.map(({ email, name }) => ({ email, name }))
+      };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+      const link = element("a");
+      link.href = url;
+      link.download = "getmail-demo-accounts.json";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    const emailPattern = /^[a-z0-9.!#$%&'*+/=?^_`{|}~\-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
+    const clientIdPattern = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+
+    function detectHyphens(line) {
+      for (const run of line.matchAll(/-{3,}/g)) {
+        if (!emailPattern.test(line.slice(0, run.index).trim())) continue;
+        const length = run[0].length;
+        if (length === 3 || length === 6) return "---";
+        if (length === 4 || length === 8) return "----";
+        return null;
+      }
+      return "";
+    }
+
+    function previewImport() {
+      const seen = new Set(accounts.map(({ email }) => email));
+      const custom = delimiterMode.value === "custom";
+      const separator = customDelimiter.value;
+      byId("custom-delimiter-field").hidden = !custom;
+      customDelimiter.disabled = !custom;
+      importRows = [];
+      importResults.replaceChildren();
+      const parsed = [];
+      let extraFields = 0;
+      for (const [index, rawLine] of importInput.value.split(/\r?\n/).entries()) {
+        if (!rawLine.trim() || (custom && !separator)) continue;
+        const delimiter = custom ? separator : detectHyphens(rawLine);
+        const fields = delimiter ? rawLine.split(delimiter) : [rawLine];
+        const email = fields[0].trim().toLowerCase();
+        const [address, password, third, fourth, ...extra] = fields;
+        const values = fields.length === 3 ? [address, password, "", third] : [address, password, third, fourth];
+        parsed.push({ line: index + 1, values, extra, delimiter });
+        extraFields = Math.max(extraFields, extra.length);
+
+        if (delimiter === null || !emailPattern.test(email) || extra.length || seen.has(email)) continue;
+        if (fields.length === 4 && (!clientIdPattern.test(third.trim()) || !fourth.trim())) continue;
+        seen.add(email);
+        const importStatus = fields.length === 4 ? "" : fields.length === 3 && third.trim() ? "缺少 Client ID" : "待授权";
+        importRows.push({ email, name: "新导入", importStatus, inbox: [], junk: [] });
+      }
+      const headings = ["行", "账号", "密码", "Client ID", "Refresh Token"];
+      if (extraFields) headings.push("其他字段");
+      const headingRow = byId("import-headings");
+      headingRow.replaceChildren(...headings.map((name) => {
+        const heading = element("th", name);
+        heading.scope = "col";
+        return heading;
+      }));
+      for (const { line, values, extra, delimiter } of parsed) {
+        const row = element("tr");
+        row.append(element("td", String(line)));
+        if (extraFields) values.push(extra.join(delimiter || ""));
+        for (const value of values) {
+          const cell = element("td");
+          cell.append(value ? element("code", value) : element("span", "—", "muted"));
+          row.append(cell);
+        }
+        importResults.append(row);
+      }
+      byId("import-table").hidden = !parsed.length;
+      byId("import-summary").textContent = custom && !separator ? "输入分隔符后显示预览。" : `共 ${parsed.length} 行`;
+      const save = byId("save-import");
+      save.disabled = importRows.length === 0;
+      save.textContent = importRows.length ? `导入 ${importRows.length} 个示例邮箱` : "导入示例邮箱";
+    }
+
+    importInput.addEventListener("input", previewImport);
+    delimiterMode.addEventListener("change", previewImport);
+    customDelimiter.addEventListener("input", previewImport);
+    byId("open-import").addEventListener("click", () => {
+      byId("import-form").reset();
+      previewImport();
+      dialog.showModal();
+    });
+    dialog.addEventListener("close", () => {
+      byId("import-form").reset();
+      importRows = [];
+      importResults.replaceChildren();
+    });
+    byId("cancel-import").addEventListener("click", () => dialog.close());
+    byId("import-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      previewImport();
+      if (!importRows.length) return;
+      for (const importedAccount of importRows) accounts.push(importedAccount);
+      search.value = "";
+      renderAccounts();
+      setView("accounts");
+      dialog.close();
+    });
+    renderAccounts();
+    renderMessages();
+    renderReader();
+    renderToken();
+    setStatus(`${account.email} · 共 ${messages.length} 封`);
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data/
+/temp/
+accounts-selected-backup.txt
+*.sqlite
+*.sqlite-*
+getmail-backup-*.json
+getmail-accounts-*.json

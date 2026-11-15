@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GetMail · 邮箱工作台</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"><span class="envelope"></span></span>
+        <div><h1>GetMail</h1><p>邮箱工作台</p></div>
+      </div>
+      <div class="tools">
+        <button class="button" id="open-settings" type="button">设置</button>
+        <button class="button" id="open-export" type="button">导出账号</button>
+        <button class="button primary" id="open-import" type="button">＋ 导入邮箱</button>
+      </div>
+    </header>
+    <p id="notice" class="notice muted" role="status" hidden></p>
+    <nav class="mobile-nav" aria-label="工作台视图">
+      <button class="button" type="button" data-view="accounts" aria-pressed="true">邮箱</button>
+      <button class="button" type="button" data-view="mail" aria-pressed="false">邮件</button>
+      <button class="button" type="button" data-view="reader" aria-pressed="false">正文</button>
+    </nav>
+    <div class="workbench" id="workbench" data-view="accounts">
+      <section class="pane accounts" aria-labelledby="accounts-heading">
+        <header class="pane-title"><h2 id="accounts-heading">邮箱</h2><span class="muted" id="account-count"></span></header>
+        <div class="search"><input id="search" type="search" aria-label="搜索邮箱地址" placeholder="搜索邮箱地址"></div>
+        <div class="export-actions" id="export-actions" hidden>
+          <button class="button" id="export-all" type="button">全选</button>
+          <button class="button" id="cancel-export" type="button">取消</button>
+          <button class="button primary" id="open-export-dialog" type="button" disabled>导出所选</button>
+        </div>
+        <div class="account-list" id="account-list"></div>
+      </section>
+      <section class="pane messages" aria-labelledby="messages-heading">
+        <header class="pane-title"><h2 id="messages-heading">邮件</h2><button class="button" id="refresh" type="button">刷新邮件</button></header>
+        <div class="current-mailbox" id="current-mailbox" hidden>
+          <h3 id="current-email" dir="ltr"></h3>
+          <button class="button" id="copy-email" type="button" aria-label="复制当前邮箱地址">复制</button>
+          <button class="button" id="open-credentials" type="button" aria-label="编辑当前邮箱">编辑</button>
+        </div>
+        <div class="token-info">
+          <strong id="token-status"></strong>
+          <p class="muted" id="token-dates"></p>
+          <button class="button" id="reauthorize" type="button">用 Microsoft 重新授权</button>
+        </div>
+        <div class="folders" aria-label="邮件文件夹" role="group">
+          <button class="button folder" type="button" data-folder="inbox" aria-pressed="true">收件箱</button>
+          <button class="button folder" type="button" data-folder="junk" aria-pressed="false">垃圾邮件</button>
+        </div>
+        <p class="status muted" id="status" role="status"></p>
+        <div class="mail-list" id="mail-list"></div>
+      </section>
+      <section class="pane reader" aria-labelledby="reader-heading">
+        <header class="pane-title"><h2 id="reader-heading">正文</h2></header>
+        <div id="reader"></div>
+      </section>
+    </div>
+  </main>
+  <dialog id="import-dialog" aria-labelledby="import-heading">
+    <form id="import-form">
+      <header class="drawer-header">
+        <h2 id="import-heading">导入邮箱</h2>
+        <button class="button drawer-close" type="button" data-close aria-label="关闭导入">×</button>
+      </header>
+      <div class="drawer-body">
+        <div class="import-source" id="import-drop">
+          <div class="import-source-header">
+            <label for="import-text" id="import-text-label">账号文本</label>
+            <button class="button" id="choose-import-file" type="button">选择文件</button>
+            <input id="account-file" type="file" accept=".txt,.json,text/plain,application/json" hidden>
+          </div>
+          <p class="muted" id="import-file-name" hidden></p>
+          <textarea id="import-text" aria-describedby="import-drop-hint" autocomplete="off" spellcheck="false" maxlength="512000" placeholder="在此粘贴账号，每行一个邮箱" autofocus></textarea>
+          <p class="muted" id="import-drop-hint">也可拖入 TXT 或 GetMail 加密备份</p>
+          <div id="import-file-fields" hidden>
+            <label>导出密码<input id="account-file-password" type="password" autocomplete="off" maxlength="256"></label>
+            <button class="button" id="preview-file" type="button">解锁预览</button>
+            <button class="button" id="clear-import-file" type="button">改用文本</button>
+          </div>
+        </div>
+        <div class="delimiter-fields" id="import-delimiter">
+          <label>分隔符<select id="delimiter-mode">
+            <option value="auto">自动解析</option>
+            <option value="custom">自定义</option>
+          </select></label>
+          <label id="custom-delimiter-field" hidden>自定义分隔符
+            <input id="custom-delimiter" type="text" placeholder="例如 | 或 ::" autocomplete="off" spellcheck="false" disabled>
+          </label>
+        </div>
+        <section class="import-preview" id="import-preview" aria-labelledby="import-preview-heading" hidden>
+          <h3 id="import-preview-heading">解析预览</h3>
+          <p class="muted" id="import-summary" role="status"></p>
+          <div class="import-results" id="import-table" tabindex="0" role="region" aria-labelledby="import-preview-heading">
+            <table aria-label="逐行解析字段">
+              <thead><tr id="import-headings"></tr></thead>
+              <tbody id="import-results"></tbody>
+            </table>
+          </div>
+        </section>
+        <p class="problem muted" role="status" hidden></p>
+      </div>
+      <footer class="actions drawer-footer">
+        <button class="button" type="button" data-close>取消</button>
+        <button class="button primary" id="save-import" type="submit" disabled>导入邮箱</button>
+      </footer>
+    </form>
+  </dialog>
+  <dialog id="export-dialog" aria-labelledby="export-heading">
+    <form id="export-form">
+      <h2 id="export-heading">导出账号</h2>
+      <p class="muted" id="export-count"></p>
+      <label>导出密码<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></label>
+      <p class="problem muted" role="status" hidden></p>
+      <div class="actions"><button class="button" type="button" data-close>取消</button><button class="button primary" type="submit">下载账号文件</button></div>
+    </form>
+  </dialog>
+  <dialog id="credentials-dialog" aria-labelledby="credentials-heading">
+    <form id="credentials-form">
+      <h2 id="credentials-heading">编辑邮箱</h2>
+      <label>邮箱地址<input name="email" type="email" maxlength="254" autocomplete="off" spellcheck="false" required autofocus></label>
+      <label>Client ID<input name="clientId" autocomplete="off" spellcheck="false"></label>
+      <label>Refresh Token<input name="refreshToken" type="password" autocomplete="off" spellcheck="false"></label>
+      <p class="muted" id="rename-hint" hidden>修改地址会清除原令牌。可以同时填写新地址的 Client ID 和 Refresh Token。</p>
+      <p class="problem muted" role="status" hidden></p>
+      <div class="actions"><button class="button danger" id="open-remove-account" type="button">移除邮箱</button><button class="button" type="button" data-close>取消</button><button class="button primary" type="submit">保存</button></div>
+    </form>
+  </dialog>
+  <dialog id="remove-account-dialog" aria-labelledby="remove-account-heading">
+    <form id="remove-account-form">
+      <h2 id="remove-account-heading">移除邮箱？</h2>
+      <p class="address-wrap" id="remove-account-address"></p>
+      <p class="muted">将从 GetMail 移除这个邮箱和保存的令牌。Outlook 中的邮件不会被删除。</p>
+      <p class="problem muted" role="status" hidden></p>
+      <div class="actions"><button class="button" type="button" data-close autofocus>取消</button><button class="button danger" type="submit">移除邮箱</button></div>
+    </form>
+  </dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-heading">
+    <h2 id="settings-heading">设置</h2>
+    <div class="settings-tabs" role="group" aria-label="设置类别">
+      <button class="button folder" id="settings-microsoft" type="button" aria-pressed="true">Microsoft 授权</button>
+      <button class="button folder" id="settings-login" type="button" aria-pressed="false">工作台登录</button>
+    </div>
+    <p class="muted" id="settings-status" role="status"></p>
+    <form id="microsoft-settings-form">
+      <p class="muted"><a href="https://entra.microsoft.com/" target="_blank" rel="noopener noreferrer">打开 Microsoft Entra</a></p>
+      <p class="muted">用有权管理 Entra 目录的账号注册应用，应用须支持个人 Microsoft 账号。收件邮箱请从邮箱列表发起授权。</p>
+      <label>Web 回调地址<input name="redirectUri" readonly></label>
+      <label>客户端ID<input name="clientId" autocomplete="off" spellcheck="false" required></label>
+      <label>客户端密钥<input name="clientSecret" type="password" autocomplete="new-password" maxlength="4096"></label>
+      <p class="muted" id="secret-hint"></p>
+      <div class="actions"><button class="button" type="button" data-close-settings>关闭</button><button class="button primary" type="submit">保存授权配置</button></div>
+    </form>
+    <form id="login-settings-form" hidden>
+      <label>用户名<input name="username" autocomplete="username" maxlength="64" required></label>
+      <label>当前密码<input name="currentPassword" type="password" autocomplete="current-password" required></label>
+      <label>新密码<input name="newPassword" type="password" autocomplete="new-password" maxlength="256" required></label>
+      <div class="actions"><button class="button" type="button" data-close-settings>关闭</button><button class="button primary" type="submit">保存登录信息</button></div>
+    </form>
+  </dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
+
